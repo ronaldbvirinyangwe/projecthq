@@ -123,7 +123,7 @@ const toggleMilestone = async (id) => {
   value={project.status}
   onChange={async (e) => {
     await onUpdate(() => ({ ...project, status: e.target.value }));
-    await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/projects/${project.id}`, {
+    await fetch(`${import.meta.env.VITE_API_URL || 'https://pm.scalesai.online'}/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: e.target.value }),
