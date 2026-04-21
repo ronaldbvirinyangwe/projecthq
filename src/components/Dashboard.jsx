@@ -2,7 +2,7 @@ import { Activity, Check, ChevronRight, DollarSign, Calendar, LayoutDashboard } 
 
 import { C } from "../constants/colors.js";
 import { STATUS_META } from "../constants/kanban.js";
-import { calcProgress, fmtDate, fmtMoney } from "../utils";
+import { calcProgress, fmtDate, fmtMoney,calcBudgetPct } from "../utils";
 import Av from "./ui/Av.jsx";
 import Bar from "./ui/Bar.jsx";
 import Chip from "./ui/Chip.jsx";
@@ -120,7 +120,7 @@ export default function Dashboard({ projects, onProjectClick }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           {projects.map((p) => {
             const progress  = calcProgress(p.tasks);
-            const budgetPct = Math.round((p.budget.spent / p.budget.total) * 100);
+            const budgetPct = calcBudgetPct(p.budget.spent, p.budget.total);
             const sm        = STATUS_META[p.status] || STATUS_META["In Progress"];
 
             return (

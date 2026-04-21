@@ -5,7 +5,7 @@ import {
 
 import { C } from "../constants/colors.js";
 import { KANBAN_COLS, PRIORITY_COLORS, STATUS_META } from "../constants/kanban.js";
-import { calcProgress, fmtDate, fmtMoney } from "../utils";
+import { calcProgress, fmtDate, fmtMoney,calcBudgetPct } from "../utils";
 import Av from "./ui/Av.jsx";
 import Bar from "./ui/Bar.jsx";
 import Chip from "./ui/Chip.jsx";
@@ -20,7 +20,7 @@ import TaskModal from "./TaskModal.jsx";
  *   onBack    – () => void   (navigate back to dashboard)
  *   onUpdate  – (updaterFn) => void
  */
-export default function ProjectDetail({ project, onBack, onUpdate }) {
+export default function ProjectDetail({ project, onBack, onUpdate, onTaskCreate, onTaskUpdate, onTaskDelete, onMilestoneToggle, onCommentAdd }) {
   const [activeTask,    setActiveTask]    = useState(null);
   const [newTaskCol,    setNewTaskCol]    = useState(null);
   const [newTaskTitle,  setNewTaskTitle]  = useState("");
@@ -28,52 +28,49 @@ export default function ProjectDetail({ project, onBack, onUpdate }) {
   const [commentAuthor, setCommentAuthor] = useState("Supervisor");
 
   // ── task mutations ──────────────────────────────────────────────────────────
-  const addTask = (colId) => {
-    if (!newTaskTitle.trim()) return;
-    const t = {
-      id: "tk" + Date.now(),
-      title:    newTaskTitle.trim(),
-      status:   colId,
-      assignee: project.team[0]?.name || "Unassigned",
-      priority: "medium",
-      deadline: "",
-      subtasks: [],
-      notes:    "",
-    };
-    onUpdate((p) => ({ ...p, tasks: [...p.tasks, t] }));
-    setNewTaskTitle("");
-    setNewTaskCol(null);
-  };
+const addTask = async (colId) => {
+  if (!newTaskTitle.trim()) return;
+  await onTaskCreate({
+    title:    newTaskTitle.trim(),
+    status:   colId,
+    assignee: project.team[0]?.name || "Unassigned",
+    priority: "medium",
+  });
+  setNewTaskTitle("");
+  setNewTaskCol(null);
+};
 
-  const updateTask = (updated) =>
-    onUpdate((p) => ({ ...p, tasks: p.tasks.map((t) => (t.id === updated.id ? updated : t)) }));
+const updateTask = async (updated) => {
+  await onTaskUpdate(updated.id, {
+    title:    updated.title,
+    status:   updated.status,
+    priority: updated.priority,
+    notes:    updated.notes,
+  });
+};
 
-  const deleteTask = (id) =>
-    onUpdate((p) => ({ ...p, tasks: p.tasks.filter((t) => t.id !== id) }));
+const deleteTask = async (id) => {
+  await onTaskDelete(id);
+};
 
-  // ── other mutations ─────────────────────────────────────────────────────────
-  const addComment = () => {
-    if (!newComment.trim()) return;
-    const c = {
-      id:     "c" + Date.now(),
-      author: commentAuthor,
-      text:   newComment.trim(),
-      date:   new Date().toISOString().split("T")[0],
-      role:   commentAuthor === "Supervisor" ? "supervisor" : "member",
-    };
-    onUpdate((p) => ({ ...p, comments: [...p.comments, c] }));
-    setNewComment("");
-  };
+const addComment = async () => {
+  if (!newComment.trim()) return;
+  await onCommentAdd({
+    author: commentAuthor,
+    text:   newComment.trim(),
+    role:   commentAuthor === "Supervisor" ? "supervisor" : "member",
+  });
+  setNewComment("");
+};
 
-  const toggleMilestone = (id) =>
-    onUpdate((p) => ({
-      ...p,
-      milestones: p.milestones.map((m) => (m.id === id ? { ...m, done: !m.done } : m)),
-    }));
+const toggleMilestone = async (id) => {
+  const milestone = project.milestones.find((m) => m.id === id);
+  await onMilestoneToggle(id, !milestone.done);
+};
 
   // ── derived values ──────────────────────────────────────────────────────────
   const progress   = calcProgress(project.tasks);
-  const budgetPct  = Math.round((project.budget.spent / project.budget.total) * 100);
+  const budgetPct = calcBudgetPct(project.budget.spent, project.budget.total);
   const sm         = STATUS_META[project.status] || STATUS_META["In Progress"];
 
   return (
@@ -122,7 +119,35 @@ export default function ProjectDetail({ project, onBack, onUpdate }) {
           </p>
         </div>
 
-        <Chip label={project.status} color={sm.color} bg={sm.bg} />
+<select
+  value={project.status}
+  onChange={async (e) => {
+    await onUpdate(() => ({ ...project, status: e.target.value }));
+    await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:4000'}/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: e.target.value }),
+    });
+  }}
+  style={{
+    background: sm.bg,
+    border: `1px solid ${sm.color}44`,
+    borderRadius: 6,
+    color: sm.color,
+    fontSize: 11,
+    fontFamily: "DM Sans",
+    fontWeight: 600,
+    padding: "4px 8px",
+    cursor: "pointer",
+    outline: "none",
+    colorScheme: "dark",
+  }}
+>
+  <option value="Planning">Planning</option>
+  <option value="In Progress">In Progress</option>
+  <option value="On Hold">On Hold</option>
+  <option value="Completed">Completed</option>
+</select>
 
         <div style={{ display: "flex" }}>
           {project.team.slice(0, 4).map((m, i) => (

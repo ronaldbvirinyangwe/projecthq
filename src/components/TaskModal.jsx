@@ -3,19 +3,11 @@ import { X, Check, Trash2 } from "lucide-react";
 
 import { C } from "../constants/colors";
 import { KANBAN_COLS, PRIORITY_COLORS } from "../constants/kanban";
-import { fmtDate } from "../utils";
+// Ensure calcTaskProgress is imported
+import { fmtDate, calcTaskProgress } from "../utils";
 import Chip from "./ui/Chip";
 import Label from "./ui/Label";
 
-/**
- * TaskModal – full-screen overlay for viewing / editing a single task.
- *
- * Props:
- *   task      – task object
- *   onClose   – () => void
- *   onUpdate  – (updatedTask) => void
- *   onDelete  – (taskId) => void
- */
 export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
   const [title, setTitle]       = useState(task.title);
   const [notes, setNotes]       = useState(task.notes || "");
@@ -24,7 +16,11 @@ export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
   const [status, setStatus]     = useState(task.status);
 
   const save = () => {
-    onUpdate({ ...task, title, notes, subtasks, status });
+    // Determine if task should be marked 'done' automatically if all subtasks are finished
+    const progress = calcTaskProgress({ subtasks });
+    const finalStatus = (progress === 100 && subtasks.length > 0) ? "done" : status;
+
+    onUpdate({ ...task, title, notes, subtasks, status: finalStatus });
     onClose();
   };
 
@@ -42,7 +38,8 @@ export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
 
   const removeSub = (id) => setSubtasks((s) => s.filter((x) => x.id !== id));
 
-  const subDone = subtasks.filter((s) => s.done).length;
+  // Calculate current progress for the UI
+  const progressPercent = calcTaskProgress({ subtasks, status });
 
   return (
     <div
@@ -80,6 +77,24 @@ export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
           </button>
         </div>
 
+        {/* Progress Bar */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+            <Label style={{ margin: 0 }}>Task Completion</Label>
+            <span style={{ fontSize: 11, color: C.accent, fontWeight: 700 }}>{progressPercent}%</span>
+          </div>
+          <div style={{ width: "100%", height: 6, background: C.surface, borderRadius: 3, overflow: "hidden" }}>
+            <div 
+              style={{ 
+                width: `${progressPercent}%`, 
+                height: "100%", 
+                background: C.accent, 
+                transition: "width 0.3s ease" 
+              }} 
+            />
+          </div>
+        </div>
+
         {/* Meta chips */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 18 }}>
           <Chip label={task.priority.toUpperCase()} color={PRIORITY_COLORS[task.priority]} />
@@ -111,9 +126,7 @@ export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
 
         {/* Subtasks */}
         <div style={{ marginBottom: 18 }}>
-          <Label>
-            Subtasks {subtasks.length > 0 && `(${subDone}/${subtasks.length} done)`}
-          </Label>
+          <Label>Subtasks</Label>
 
           {subtasks.map((st) => (
             <div
