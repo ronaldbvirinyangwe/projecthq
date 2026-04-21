@@ -100,6 +100,167 @@ app.post('/api/search', async (req, res) => {
   res.json(rows);
 });
 
+// PATCH project (status, etc.)
+app.patch('/api/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fields = req.body;
+    const keys = Object.keys(fields);
+    if (!keys.length) return res.status(400).json({ error: 'No fields provided' });
+
+    const setClauses = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const values     = keys.map((k) => fields[k]);
+
+    const { rows } = await pool.query(
+      `UPDATE projects SET ${setClauses} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST task
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const { project_id, title, status, assignee, priority, notes, deadline } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO tasks (project_id, title, status, assignee, priority, notes, deadline)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [project_id, title, status || 'todo', assignee || null, priority || 'medium', notes || null, deadline || null]
+    );
+    res.json({ ...rows[0], subtasks: [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH task (title, status, priority, notes)
+app.patch('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fields = req.body;
+    const keys = Object.keys(fields);
+    if (!keys.length) return res.status(400).json({ error: 'No fields provided' });
+
+    const setClauses = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const values     = keys.map((k) => fields[k]);
+
+    const { rows } = await pool.query(
+      `UPDATE tasks SET ${setClauses} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+
+    // Return task with its subtasks
+    const subtasks = (await pool.query(
+      `SELECT * FROM subtasks WHERE task_id = $1 ORDER BY id`, [id]
+    )).rows;
+    res.json({ ...rows[0], subtasks });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE task
+app.delete('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`DELETE FROM subtasks WHERE task_id = $1`, [id]); // cascade subtasks
+    await pool.query(`DELETE FROM tasks WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST subtask
+app.post('/api/subtasks', async (req, res) => {
+  try {
+    const { task_id, title } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO subtasks (task_id, title, done) VALUES ($1,$2,false) RETURNING *`,
+      [task_id, title]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH subtask (done, title)
+app.patch('/api/subtasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const fields = req.body;
+    const keys = Object.keys(fields);
+    if (!keys.length) return res.status(400).json({ error: 'No fields provided' });
+
+    const setClauses = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const values     = keys.map((k) => fields[k]);
+
+    const { rows } = await pool.query(
+      `UPDATE subtasks SET ${setClauses} WHERE id = $${keys.length + 1} RETURNING *`,
+      [...values, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE subtask
+app.delete('/api/subtasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(`DELETE FROM subtasks WHERE id = $1`, [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH milestone (done)
+app.patch('/api/milestones/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { done } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE milestones SET done = $1 WHERE id = $2 RETURNING *`,
+      [done, id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST comment
+app.post('/api/comments', async (req, res) => {
+  try {
+    const { project_id, author, role, text } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO comments (project_id, author, role, text) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [project_id, author, role, text]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`API running on port ${PORT}`));

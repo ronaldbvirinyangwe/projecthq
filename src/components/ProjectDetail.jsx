@@ -11,6 +11,7 @@ import Bar from "./ui/Bar.jsx";
 import Chip from "./ui/Chip.jsx";
 import Label from "./ui/Label.jsx";
 import TaskModal from "./TaskModal.jsx";
+import * as api from "../services/api";
 
 /**
  * ProjectDetail – kanban board + sidebar for a single project.
@@ -524,14 +525,52 @@ const toggleMilestone = async (id) => {
       </div>
 
       {/* Task modal */}
-      {activeTask && (
-        <TaskModal
-          task={activeTask}
-          onClose={() => setActiveTask(null)}
-          onUpdate={(u) => { updateTask(u); setActiveTask(null); }}
-          onDelete={(id) => { deleteTask(id); setActiveTask(null); }}
-        />
-      )}
+     {activeTask && (
+  <TaskModal
+    task={activeTask}
+    onClose={() => setActiveTask(null)}
+    onUpdate={(u) => { updateTask(u); setActiveTask(null); }}
+    onDelete={(id) => { deleteTask(id); setActiveTask(null); }}
+
+    onSubtaskToggle={async (id, done) => {
+      await api.updateSubtask(id, { done });
+      // keep local state in sync
+      onUpdate((p) => ({
+        ...p,
+        tasks: p.tasks.map((t) =>
+          t.id === activeTask.id
+            ? { ...t, subtasks: t.subtasks.map((s) => s.id === id ? { ...s, done } : s) }
+            : t
+        ),
+      }));
+    }}
+
+    onSubtaskAdd={async (taskId, title) => {
+      const saved = await api.createSubtask({ task_id: taskId, title });
+      onUpdate((p) => ({
+        ...p,
+        tasks: p.tasks.map((t) =>
+          t.id === taskId
+            ? { ...t, subtasks: [...t.subtasks, saved] }
+            : t
+        ),
+      }));
+      return saved;
+    }}
+
+    onSubtaskRemove={async (id) => {
+      await api.deleteSubtask(id);
+      onUpdate((p) => ({
+        ...p,
+        tasks: p.tasks.map((t) =>
+          t.id === activeTask.id
+            ? { ...t, subtasks: t.subtasks.filter((s) => s.id !== id) }
+            : t
+        ),
+      }));
+    }}
+  />
+)}
     </div>
   );
 }

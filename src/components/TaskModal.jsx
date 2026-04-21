@@ -8,35 +8,61 @@ import { fmtDate, calcTaskProgress } from "../utils";
 import Chip from "./ui/Chip";
 import Label from "./ui/Label";
 
-export default function TaskModal({ task, onClose, onUpdate, onDelete }) {
+export default function TaskModal({ task, onClose, onUpdate, onDelete, onSubtaskToggle, onSubtaskAdd, onSubtaskRemove }) {
   const [title, setTitle]       = useState(task.title);
   const [notes, setNotes]       = useState(task.notes || "");
   const [subtasks, setSubtasks] = useState(task.subtasks || []);
   const [newSub, setNewSub]     = useState("");
   const [status, setStatus]     = useState(task.status);
 
-  const save = () => {
-    // Determine if task should be marked 'done' automatically if all subtasks are finished
-    const progress = calcTaskProgress({ subtasks });
-    const finalStatus = (progress === 100 && subtasks.length > 0) ? "done" : status;
+  // const save = () => {
+  //   // Determine if task should be marked 'done' automatically if all subtasks are finished
+  //   const progress = calcTaskProgress({ subtasks });
+  //   const finalStatus = (progress === 100 && subtasks.length > 0) ? "done" : status;
 
-    onUpdate({ ...task, title, notes, subtasks, status: finalStatus });
-    onClose();
-  };
+  //   onUpdate({ ...task, title, notes, subtasks, status: finalStatus });
+  //   onClose();
+  // };
 
-  const toggleSub = (id) =>
-    setSubtasks((s) => s.map((st) => (st.id === id ? { ...st, done: !st.done } : st)));
+ const toggleSub = async (id) => {
+  const sub = subtasks.find((s) => s.id === id);
+  const updated = { ...sub, done: !sub.done };
+  setSubtasks((s) => s.map((st) => st.id === id ? updated : st));
+  // Only call API if it's a real DB subtask (not a newly added unsaved one)
+  if (!id.startsWith("ns") && onSubtaskToggle) {
+    await onSubtaskToggle(id, !sub.done);
+  }
+};
 
-  const addSub = () => {
-    if (!newSub.trim()) return;
-    setSubtasks((s) => [
-      ...s,
-      { id: "ns" + Date.now(), title: newSub.trim(), done: false },
-    ]);
-    setNewSub("");
-  };
+const addSub = async () => {
+  if (!newSub.trim()) return;
+  const tempId = "ns" + Date.now();
+  const newSubtask = { id: tempId, title: newSub.trim(), done: false };
+  setSubtasks((s) => [...s, newSubtask]);
+  setNewSub("");
+  // Save to DB immediately and replace temp id with real one
+  if (onSubtaskAdd) {
+    const saved = await onSubtaskAdd(task.id, newSub.trim());
+    if (saved) {
+      setSubtasks((s) => s.map((st) => st.id === tempId ? saved : st));
+    }
+  }
+};
 
-  const removeSub = (id) => setSubtasks((s) => s.filter((x) => x.id !== id));
+const removeSub = async (id) => {
+  setSubtasks((s) => s.filter((x) => x.id !== id));
+  if (!id.startsWith("ns") && onSubtaskRemove) {
+    await onSubtaskRemove(id);
+  }
+};
+
+const save = () => {
+  const progress = calcTaskProgress({ subtasks });
+  const finalStatus = (progress === 100 && subtasks.length > 0) ? "done" : status;
+  // Only saves title, notes, status — subtasks are saved individually above
+  onUpdate({ ...task, title, notes, subtasks, status: finalStatus });
+  onClose();
+};
 
   // Calculate current progress for the UI
   const progressPercent = calcTaskProgress({ subtasks, status });

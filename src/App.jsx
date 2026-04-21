@@ -1,6 +1,6 @@
 import { useState, useEffect }                    from "react";
 import { ClerkProvider, SignedIn, SignedOut,
-         SignIn, useUser, useClerk }              from "@clerk/clerk-react";
+         useUser, useClerk }                      from "@clerk/clerk-react";
 import Dashboard     from "./components/Dashboard";
 import ProjectDetail from "./components/ProjectDetail";
 import * as api      from "./services/api";
@@ -13,29 +13,12 @@ if (!PUBLISHABLE_KEY) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in your .env file");
 }
 
-// ── Clerk appearance — matches the dark ProjectHQ theme ───────────────────
-const clerkAppearance = {
-  variables: {
-    colorPrimary:         "#22d3ee",
-    colorBackground:      "#0d1626",
-    colorText:            "#e2e8f0",
-    colorTextSecondary:   "#94a3b8",
-    colorInputBackground: "#111e35",
-    colorInputText:       "#e2e8f0",
-    colorNeutral:         "#1a2d4a",
-    borderRadius:         "8px",
-    fontFamily:           "DM Sans, sans-serif",
-  },
-  elements: {
-    card:              { border: "1px solid #1a2d4a", boxShadow: "0 8px 32px #00000066" },
-    formButtonPrimary: { background: "#22d3ee", color: "#070c16", fontWeight: 700 },
-    footerActionLink:  { color: "#22d3ee" },
-    headerTitle:       { fontFamily: "Syne, sans-serif", fontWeight: 800 },
-  },
-};
-
-// ── Sign-in screen ─────────────────────────────────────────────────────────
+// ── Redirect to hosted sign-in ─────────────────────────────────────────────
 function AuthScreen() {
+  useEffect(() => {
+    window.location.href = "https://accounts.scalesai.online/sign-in";
+  }, []);
+
   return (
     <div
       style={{
@@ -45,21 +28,20 @@ function AuthScreen() {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 28,
+        gap: 12,
+        color: "#94a3b8",
+        fontFamily: "DM Sans, sans-serif",
       }}
     >
-      <div style={{ textAlign: "center" }}>
-        <h1 style={{
-          fontFamily: "Syne, sans-serif", fontSize: 28, fontWeight: 800,
-          color: "#e2e8f0", letterSpacing: "-0.5px",
-        }}>
-          Project<span style={{ color: "#22d3ee" }}>HQ</span>
-        </h1>
-        <p style={{ fontSize: 12, color: "#4b6086", fontFamily: "Space Mono, monospace", marginTop: 4 }}>
-          Management Dashboard
-        </p>
-      </div>
-      <SignIn appearance={clerkAppearance} />
+      <div style={{
+        width: 18, height: 18,
+        border: "2px solid #22d3ee",
+        borderTopColor: "transparent",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+      }} />
+      <p style={{ fontSize: 13 }}>Redirecting to sign-in…</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -192,7 +174,13 @@ function AppShell() {
 // ── Root export ────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <ClerkProvider
+      publishableKey={PUBLISHABLE_KEY}
+      signInUrl="https://accounts.scalesai.online/sign-in"
+      signUpUrl="https://accounts.scalesai.online/sign-up"
+      afterSignInUrl="https://projectmanager.scalesai.online"
+      afterSignOutUrl="https://accounts.scalesai.online/sign-in"
+    >
       <style>{`
         @import url('${FONT_URL}');
         * { box-sizing: border-box; margin: 0; padding: 0; }
