@@ -8,45 +8,19 @@ import * as api      from "./services/api";
 const FONT_URL = "https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+if (!PUBLISHABLE_KEY) throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in your .env file");
 
-if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in your .env file");
-}
-
-// ── Redirect to hosted sign-in ─────────────────────────────────────────────
 function AuthScreen() {
-  useEffect(() => {
-    window.location.href = "https://accounts.scalesai.online/sign-in";
-  }, []);
-
+  useEffect(() => { window.location.href = "https://accounts.scalesai.online/sign-in"; }, []);
   return (
-    <div
-      style={{
-        height: "100vh",
-        background: "#070c16",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 12,
-        color: "#94a3b8",
-        fontFamily: "DM Sans, sans-serif",
-      }}
-    >
-      <div style={{
-        width: 18, height: 18,
-        border: "2px solid #22d3ee",
-        borderTopColor: "transparent",
-        borderRadius: "50%",
-        animation: "spin 0.8s linear infinite",
-      }} />
+    <div style={{ height: "100vh", background: "#070c16", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: "#94a3b8", fontFamily: "DM Sans, sans-serif" }}>
+      <div style={{ width: 18, height: 18, border: "2px solid #22d3ee", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
       <p style={{ fontSize: 13 }}>Redirecting to sign-in…</p>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-// ── Main app shell (only renders when signed in) ───────────────────────────
 function AppShell() {
   const { user }                          = useUser();
   const { signOut }                       = useClerk();
@@ -62,67 +36,97 @@ function AppShell() {
       .finally(() => setLoading(false));
   }, []);
 
+  // ── generic project updater ──────────────────────────────────────────────
   const handleProjectUpdate = (projectId, updaterFn) =>
-    setProjects((prev) =>
-      prev.map((p) => (p.id === projectId ? updaterFn(p) : p))
-    );
+    setProjects((prev) => prev.map((p) => p.id === projectId ? updaterFn(p) : p));
 
   const makeApiUpdater = (projectId) => async (updaterFn) =>
     handleProjectUpdate(projectId, updaterFn);
 
+  // ── tasks ────────────────────────────────────────────────────────────────
   const handleTaskCreate = async (projectId, taskData) => {
     const newTask = await api.createTask({ project_id: projectId, ...taskData });
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId ? { ...p, tasks: [...p.tasks, newTask] } : p
-      )
-    );
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId ? { ...p, tasks: [...p.tasks, newTask] } : p
+    ));
   };
 
   const handleTaskUpdate = async (projectId, taskId, fields) => {
     const updated = await api.updateTask(taskId, fields);
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId
-          ? { ...p, tasks: p.tasks.map((t) => (t.id === taskId ? updated : t)) }
-          : p
-      )
-    );
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, tasks: p.tasks.map((t) => t.id === taskId ? updated : t) }
+        : p
+    ));
   };
 
   const handleTaskDelete = async (projectId, taskId) => {
     await api.deleteTask(taskId);
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId
-          ? { ...p, tasks: p.tasks.filter((t) => t.id !== taskId) }
-          : p
-      )
-    );
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, tasks: p.tasks.filter((t) => t.id !== taskId) }
+        : p
+    ));
   };
 
+  // ── milestones ───────────────────────────────────────────────────────────
   const handleMilestoneToggle = async (projectId, milestoneId, done) => {
     await api.toggleMilestone(milestoneId, done);
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId
-          ? { ...p, milestones: p.milestones.map((m) => (m.id === milestoneId ? { ...m, done } : m)) }
-          : p
-      )
-    );
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, milestones: p.milestones.map((m) => m.id === milestoneId ? { ...m, done } : m) }
+        : p
+    ));
   };
 
+  const handleMilestoneAdd = async (projectId, milestoneData) => {
+    const newMilestone = await api.createMilestone({ project_id: projectId, ...milestoneData });
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, milestones: [...p.milestones, newMilestone] }
+        : p
+    ));
+  };
+
+  const handleMilestoneDelete = async (projectId, milestoneId) => {
+    await api.deleteMilestone(milestoneId);
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, milestones: p.milestones.filter((m) => m.id !== milestoneId) }
+        : p
+    ));
+  };
+
+  // ── team members ─────────────────────────────────────────────────────────
+  const handleTeamMemberAdd = async (projectId, memberData) => {
+    const newMember = await api.createTeamMember({ project_id: projectId, ...memberData });
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, team: [...p.team, newMember] }
+        : p
+    ));
+  };
+
+  const handleTeamMemberRemove = async (projectId, memberId) => {
+    await api.deleteTeamMember(memberId);
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, team: p.team.filter((m) => m.id !== memberId) }
+        : p
+    ));
+  };
+
+  // ── comments ─────────────────────────────────────────────────────────────
   const handleCommentAdd = async (projectId, commentData) => {
     const newComment = await api.createComment({ project_id: projectId, ...commentData });
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId
-          ? { ...p, comments: [...p.comments, newComment] }
-          : p
-      )
-    );
+    setProjects((prev) => prev.map((p) =>
+      p.id === projectId
+        ? { ...p, comments: [...p.comments, newComment] }
+        : p
+    ));
   };
 
+  // ── loading / error states ───────────────────────────────────────────────
   if (loading) return (
     <div style={{ height: "100vh", background: "#070c16", display: "flex", alignItems: "center", justifyContent: "center", gap: 12, color: "#94a3b8", fontFamily: "DM Sans" }}>
       <div style={{ width: 18, height: 18, border: "2px solid #22d3ee", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -153,26 +157,29 @@ function AppShell() {
           project={project}
           onBack={() => setActiveProject(null)}
           onUpdate={makeApiUpdater(activeProject)}
-          onTaskCreate={(data)          => handleTaskCreate(activeProject, data)}
-          onTaskUpdate={(id, fields)    => handleTaskUpdate(activeProject, id, fields)}
-          onTaskDelete={(id)            => handleTaskDelete(activeProject, id)}
-          onMilestoneToggle={(id, done) => handleMilestoneToggle(activeProject, id, done)}
-          onCommentAdd={(data)          => handleCommentAdd(activeProject, data)}
+          onTaskCreate={(data)              => handleTaskCreate(activeProject, data)}
+          onTaskUpdate={(id, fields)        => handleTaskUpdate(activeProject, id, fields)}
+          onTaskDelete={(id)                => handleTaskDelete(activeProject, id)}
+          onMilestoneToggle={(id, done)     => handleMilestoneToggle(activeProject, id, done)}
+          onMilestoneAdd={(data)            => handleMilestoneAdd(activeProject, data)}
+          onMilestoneDelete={(id)           => handleMilestoneDelete(activeProject, id)}
+          onTeamMemberAdd={(data)           => handleTeamMemberAdd(activeProject, data)}
+          onTeamMemberRemove={(id)          => handleTeamMemberRemove(activeProject, id)}
+          onCommentAdd={(data)              => handleCommentAdd(activeProject, data)}
         />
       ) : (
-       <Dashboard
-  projects={projects}
-  onProjectClick={setActiveProject}
-  onProjectAdded={(newProject) => setProjects((prev) => [newProject, ...prev])}
-  user={user}
-  onSignOut={signOut}
-/>
+        <Dashboard
+          projects={projects}
+          onProjectClick={setActiveProject}
+          onProjectAdded={(newProject) => setProjects((prev) => [newProject, ...prev])}
+          user={user}
+          onSignOut={signOut}
+        />
       )}
     </>
   );
 }
 
-// ── Root export ────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <ClerkProvider
@@ -190,14 +197,8 @@ export default function App() {
         ::-webkit-scrollbar-track { background: #0a1628; }
         ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
       `}</style>
-
-      <SignedOut>
-        <AuthScreen />
-      </SignedOut>
-
-      <SignedIn>
-        <AppShell />
-      </SignedIn>
+      <SignedOut><AuthScreen /></SignedOut>
+      <SignedIn><AppShell /></SignedIn>
     </ClerkProvider>
   );
 }

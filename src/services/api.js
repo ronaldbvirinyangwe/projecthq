@@ -71,8 +71,21 @@ export const deleteSubtask = async (id) =>
   req(`/api/subtasks/${id}`, { method: "DELETE" });
 
 // ── Milestones ───────────────────────────────────────────────────────────────
+export const createMilestone = async (milestone) =>
+  req("/api/milestones", { method: "POST", body: JSON.stringify(milestone) });
+
 export const toggleMilestone = async (id, done) =>
   req(`/api/milestones/${id}`, { method: "PATCH", body: JSON.stringify({ done }) });
+
+export const deleteMilestone = async (id) =>
+  req(`/api/milestones/${id}`, { method: "DELETE" });
+
+// ── Team Members ─────────────────────────────────────────────────────────────
+export const createTeamMember = async (member) =>
+  req("/api/team_members", { method: "POST", body: JSON.stringify(member) });
+
+export const deleteTeamMember = async (id) =>
+  req(`/api/team_members/${id}`, { method: "DELETE" });
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 export const createComment = async (comment) => {
