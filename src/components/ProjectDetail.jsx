@@ -45,8 +45,16 @@ export default function ProjectDetail({
     setNewTaskTitle(""); setNewTaskCol(null);
   };
 
+  // ✅ FIX: include deadline and assignee so the modal's saved values persist
   const updateTask = async (updated) => {
-    await onTaskUpdate(updated.id, { title: updated.title, status: updated.status, priority: updated.priority, notes: updated.notes });
+    await onTaskUpdate(updated.id, {
+      title:    updated.title,
+      status:   updated.status,
+      priority: updated.priority,
+      notes:    updated.notes,
+      deadline: updated.deadline || null,
+      assignee: updated.assignee || null,
+    });
   };
 
   const deleteTask = async (id) => { await onTaskDelete(id); };
@@ -394,7 +402,6 @@ export default function ProjectDetail({
                   onMouseEnter={(e) => e.currentTarget.querySelector(".remove-ms").style.opacity = "1"}
                   onMouseLeave={(e) => e.currentTarget.querySelector(".remove-ms").style.opacity = "0"}
                 >
-                  {/* toggle checkbox */}
                   <div
                     onClick={() => toggleMilestone(m.id)}
                     style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0, background: m.done ? C.emerald + "28" : "transparent", border: `1.5px solid ${m.done ? C.emerald : C.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
@@ -477,10 +484,11 @@ export default function ProjectDetail({
         </div>
       </div>
 
-      {/* Task modal */}
+      {/* ✅ FIX: team prop now passed so assignee picker is populated */}
       {activeTask && (
         <TaskModal
           task={activeTask}
+          team={project.team}
           onClose={() => setActiveTask(null)}
           onUpdate={(u) => { updateTask(u); setActiveTask(null); }}
           onDelete={(id) => { deleteTask(id); setActiveTask(null); }}
