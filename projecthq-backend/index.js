@@ -71,33 +71,53 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
-app.patch('/api/tasks/:id', async (req, res) => {
-  const { id } = req.params;
-  const { status } = req.body;
-  const { rows } = await pool.query('UPDATE tasks SET status=$1 WHERE id=$2 RETURNING *', [status, id]);
-  res.json(rows[0]);
-});
+// ─────────────────────────────────────────────────────────────────────────────
+// POST project  ← NEW
+// Body: { name, description?, color?, status?, budget_total?, deadline? }
+// Returns the full project shape (with empty tasks/team/milestones/comments)
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/projects', async (req, res) => {
+  try {
+    const {
+      name,
+      description  = '',
+      color        = '#06b6d4',
+      status       = 'In Progress',
+      budget_total = 0,
+      deadline     = null,
+    } = req.body;
 
-// POST comment
-app.post('/api/comments', async (req, res) => {
-  const { project_id, author, role, text } = req.body;
-  const { rows } = await pool.query(
-    'INSERT INTO comments (project_id, author, role, text) VALUES ($1,$2,$3,$4) RETURNING *',
-    [project_id, author, role, text]
-  );
-  res.json(rows[0]);
-});
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'name is required' });
+    }
 
-// pgvector: semantic search
-app.post('/api/search', async (req, res) => {
-  const { embedding } = req.body; // float array from Claude/OpenAI
-  const { rows } = await pool.query(
-    `SELECT source_type, source_id, content,
-     1 - (embedding <=> $1::vector) AS similarity
-     FROM embeddings ORDER BY similarity DESC LIMIT 5`,
-    [JSON.stringify(embedding)]
-  );
-  res.json(rows);
+    const { rows } = await pool.query(
+      `INSERT INTO projects
+         (name, description, color, status, budget_total, budget_spent, deadline)
+       VALUES ($1, $2, $3, $4, $5, 0, $6)
+       RETURNING *`,
+      [name.trim(), description.trim(), color, status, parseFloat(budget_total) || 0, deadline]
+    );
+
+    const p = rows[0];
+
+    // Return in the same shape the frontend expects
+    res.status(201).json({
+      ...p,
+      // Normalise budget into the nested shape the UI uses
+      budget: {
+        total: parseFloat(p.budget_total) || 0,
+        spent: parseFloat(p.budget_spent) || 0,
+      },
+      tasks:      [],
+      team:       [],
+      milestones: [],
+      comments:   [],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // PATCH project (status, etc.)
@@ -156,7 +176,6 @@ app.patch('/api/tasks/:id', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
 
-    // Return task with its subtasks
     const subtasks = (await pool.query(
       `SELECT * FROM subtasks WHERE task_id = $1 ORDER BY id`, [id]
     )).rows;
@@ -171,7 +190,7 @@ app.patch('/api/tasks/:id', async (req, res) => {
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query(`DELETE FROM subtasks WHERE task_id = $1`, [id]); // cascade subtasks
+    await pool.query(`DELETE FROM subtasks WHERE task_id = $1`, [id]);
     await pool.query(`DELETE FROM tasks WHERE id = $1`, [id]);
     res.json({ success: true });
   } catch (err) {
@@ -260,6 +279,18 @@ app.post('/api/comments', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// pgvector: semantic search
+app.post('/api/search', async (req, res) => {
+  const { embedding } = req.body;
+  const { rows } = await pool.query(
+    `SELECT source_type, source_id, content,
+     1 - (embedding <=> $1::vector) AS similarity
+     FROM embeddings ORDER BY similarity DESC LIMIT 5`,
+    [JSON.stringify(embedding)]
+  );
+  res.json(rows);
 });
 
 const PORT = process.env.PORT || 4000;

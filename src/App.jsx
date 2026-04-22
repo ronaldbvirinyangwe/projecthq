@@ -160,12 +160,13 @@ function AppShell() {
           onCommentAdd={(data)          => handleCommentAdd(activeProject, data)}
         />
       ) : (
-        <Dashboard
-          projects={projects}
-          onProjectClick={setActiveProject}
-          user={user}
-          onSignOut={signOut}
-        />
+       <Dashboard
+  projects={projects}
+  onProjectClick={setActiveProject}
+  onProjectAdded={(newProject) => setProjects((prev) => [newProject, ...prev])}
+  user={user}
+  onSignOut={signOut}
+/>
       )}
     </>
   );
